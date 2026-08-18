@@ -9,7 +9,7 @@
  * starou verzi donekonečna.
  */
 
-const VERZE = 'permanentky-v7';
+const VERZE = 'permanentky-v9';
 
 const SOUBORY = [
   './',
@@ -34,7 +34,16 @@ const SOUBORY = [
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(VERZE)
-      .then((c) => c.addAll(SOUBORY))
+      .then((c) => Promise.all(SOUBORY.map(function (cesta) {
+        // `cache: 'reload'` obejde HTTP cache prohlížeče. Bez toho si nová verze
+        // klidně uloží staré soubory, které v cache ještě leží, a v telefonu
+        // vznikne míchanice půlky staré a půlky nové aplikace.
+        return fetch(new Request(cesta, {cache: 'reload'}))
+          .then(function (odpoved) {
+            if (!odpoved.ok) throw new Error('Nepovedlo se stáhnout ' + cesta);
+            return c.put(cesta, odpoved);
+          });
+      })))
       .then(() => self.skipWaiting())
   );
 });

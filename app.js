@@ -2,11 +2,15 @@
  * app.js — propojení kamery, ověření a odesílání.
  *
  * Průběh jednoho skenu:
- *   1. verdikt se spočítá VŽDY lokálně (verdikt.js) — obsluha vidí výsledek hned,
- *      i kdyby server neodpověděl,
- *   2. je-li signál, pošle se na server a jeho verdikt lokální přebije
- *      (server vidí i skeny z ostatních telefonů),
- *   3. bez signálu putuje vstup do fronty a odešle se, až signál bude.
+ *   1. verdikt se spočítá lokálně (verdikt.js) a **hned se ukáže** — Apps Script
+ *      odpovídá 3–6 vteřin a tolik se u vstupu čekat nedá,
+ *   2. na pozadí běží zápis na server. Ten ví navíc o skenech z ostatních
+ *      telefonů a o změnách po stažení seznamu; když se s námi rozejde,
+ *      verdikt na obrazovce se opraví (a znovu pípne),
+ *   3. bez signálu nebo při chybě putuje vstup do fronty a odešle se později.
+ *
+ * Do tabulky se tedy vždycky zapíše to, co si myslí server — obsluha jen nemusí
+ * čekat, než to dopočítá.
  */
 
 import * as api from './api.js';
@@ -32,6 +36,7 @@ let snapshot = null;
 let ctecka = null;
 let posledniSken = null;   // kvůli tlačítku „Přesto pustit"
 let zpracovavam = false;
+let cisloSkenu = 0;      // odpověď serveru patří jen tomu skenu, který ji vyvolal
 
 // ---- start -----------------------------------------------------------------
 
@@ -134,6 +139,7 @@ async function zpracuj(vstupniKod, force) {
 async function zpracujJeden(vstupniKod, force) {
   const kod = normalizujKod(vstupniKod);
   posledniSken = kod;
+  const mujSken = ++cisloSkenu;
 
   // Dokud nevíme výsledek, nesmí na obrazovce zůstat verdikt od předchozího
   // člověka — ten by se dal přečíst jako verdikt tohohle.
@@ -163,30 +169,48 @@ async function zpracujJeden(vstupniKod, force) {
     force: !!force
   };
 
-  let zeServeru = false;
-  let permanentkaKZobrazeni = permanentka;
-
-  if (navigator.onLine) {
-    try {
-      const odpoved = await api.checkin(vstup);
-      v = {vysledek: odpoved.vysledek, duvod: odpoved.duvod};
-      permanentkaKZobrazeni = odpoved.permanentka || permanentka;
-      zeServeru = true;
-    } catch {
-      await store.doFronty({...vstup, offline: true});
-    }
-  } else {
-    await store.doFronty({...vstup, offline: true});
-  }
-
-  const poznamka = zeServeru ? '' : '⚠ Ověřeno offline — ' + stariSnapshotu();
-
   if (v.vysledek === VYSLEDEK.OK || v.vysledek === VYSLEDEK.DUPLICITA_POVOLENA) {
     await store.zapamatujVstup(zapasId, kod, vstup.cas_skenu);
   }
 
-  ukazVerdikt(v, permanentkaKZobrazeni, kod, poznamka);
-  prekresliStav();
+  // Verdikt ukážeme HNED z místních dat. Apps Script odpovídá 3–6 vteřin a tolik
+  // se u vstupu čekat nedá; místní seznam přitom zná platnost, stav i duplicity
+  // z tohohle telefonu, takže je skoro vždycky správný.
+  ukazVerdikt(v, permanentka, kod, '⏳ ověřuji u serveru…');
+
+  if (!navigator.onLine) {
+    await store.doFronty({...vstup, offline: true});
+    ukazVerdikt(v, permanentka, kod, '⚠ Ověřeno offline — ' + stariSnapshotu(), true);
+    prekresliStav();
+    return;
+  }
+
+  // Server běží na pozadí. Ví navíc o skenech z ostatních telefonů a o změnách
+  // provedených po stažení seznamu — když se s námi rozejde, verdikt opravíme.
+  // Nechceme panel znovu otevřít, když ho obsluha už odklikla a míří kamerou
+  // na dalšího člověka — do tabulky se pravda zapíše tak jako tak.
+  const jesteNaObrazovce = () => mujSken === cisloSkenu && !prvek.verdikt.hidden;
+
+  api.checkin(vstup).then(async (odpoved) => {
+    if (!jesteNaObrazovce()) return;
+
+    const serverovy = {vysledek: odpoved.vysledek, duvod: odpoved.duvod};
+    if (serverovy.vysledek === v.vysledek) {
+      ukazVerdikt(v, odpoved.permanentka || permanentka, kod, '', true);
+      return;
+    }
+
+    if (serverovy.vysledek === VYSLEDEK.OK
+        || serverovy.vysledek === VYSLEDEK.DUPLICITA_POVOLENA) {
+      await store.zapamatujVstup(zapasId, kod, vstup.cas_skenu);
+    }
+    ukazVerdikt(serverovy, odpoved.permanentka || permanentka, kod,
+                '↻ Opraveno podle serveru');
+  }).catch(async () => {
+    await store.doFronty({...vstup, offline: true});
+    if (!jesteNaObrazovce()) return;
+    ukazVerdikt(v, permanentka, kod, '⚠ Ověřeno offline — ' + stariSnapshotu(), true);
+  }).finally(prekresliStav);
 }
 
 // ---- verdikt ---------------------------------------------------------------
@@ -205,7 +229,7 @@ function ukazCekani(kod) {
   prvek.verdikt.hidden = false;
 }
 
-function ukazVerdikt(v, permanentka, kod, poznamka) {
+function ukazVerdikt(v, permanentka, kod, poznamka, tise) {
   prvek.vDalsi.disabled = false;
   const vzhled = VZHLED[v.vysledek] || {barva: 'chyba', nadpis: 'CHYBA', zvuk: 'chyba'};
 
@@ -221,7 +245,7 @@ function ukazVerdikt(v, permanentka, kod, poznamka) {
 
   prvek.vPustit.hidden = v.vysledek !== VYSLEDEK.DUPLICITA;
   prvek.verdikt.hidden = false;
-  odezva(vzhled.zvuk);
+  if (!tise) odezva(vzhled.zvuk);
 }
 
 function zavriVerdikt() {
