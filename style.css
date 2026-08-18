@@ -1,0 +1,511 @@
+/* Skener permanentek — jeden sloupec, velké plochy, čitelné i proti slunci. */
+
+:root {
+  --pozadi: #111418;
+  --panel: #1b2027;
+  --text: #f2f4f7;
+  --text-jemny: #9aa4b2;
+  --cara: #2b323c;
+  --ok: #1e8e3e;
+  --pozor: #e07b00;
+  --chyba: #c62828;
+  --modra: #2d6cdf;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--pozadi);
+  color: var(--text);
+  font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ---- stavová lišta ------------------------------------------------------ */
+
+.stav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--cara);
+}
+
+.stav-radek {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.odznak {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #263041;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.odznak.jemny { background: transparent; color: var(--text-jemny); font-weight: 400; }
+.odznak.online { background: var(--ok); }
+.odznak.offline { background: var(--chyba); }
+.odznak.ceka { background: var(--pozor); }
+
+#zapas {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--cara);
+  border-radius: 8px;
+  background: #263041;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.ikona {
+  margin-left: auto;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: #263041;
+  color: var(--text);
+  font-size: 19px;
+}
+
+/* ---- kamera ------------------------------------------------------------- */
+
+#kamera {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hledacek {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.ramecek {
+  width: min(62vw, 260px);
+  aspect-ratio: 1;
+  border: 3px solid rgba(255, 255, 255, .85);
+  border-radius: 16px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .35);
+}
+
+.hlaska {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: #dfe4ea;
+  text-shadow: 0 1px 3px #000;
+}
+
+.velke-tlacitko {
+  position: absolute;
+  padding: 16px 26px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--modra);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.velke-tlacitko[hidden] { display: none; }
+
+/* ---- ruční zadání ------------------------------------------------------- */
+
+.rucni {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border-top: 1px solid var(--cara);
+}
+
+.rucni input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--cara);
+  border-radius: 8px;
+  background: #0e1116;
+  color: var(--text);
+  font: 600 15px/1 ui-monospace, "SF Mono", Consolas, monospace;
+  letter-spacing: .5px;
+}
+
+.rucni button {
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #37414f;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---- verdikt ------------------------------------------------------------ */
+
+.verdikt {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 20px calc(20px + env(safe-area-inset-left))
+           calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-right));
+  color: #fff;
+}
+
+.verdikt[hidden] { display: none; }
+.verdikt.ok { background: var(--ok); }
+.verdikt.pozor { background: var(--pozor); }
+.verdikt.ceka { background: #37414f; }        /* neutrální, než dorazí odpověď */
+.verdikt.chyba { background: var(--chyba); }
+
+.verdikt-obsah {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.v-nadpis { margin: 0; font-size: clamp(38px, 13vw, 68px); font-weight: 800; line-height: 1; }
+.v-jmeno  { margin: 10px 0 0; font-size: clamp(22px, 7vw, 34px); font-weight: 700; }
+.v-typ    { margin: 0; font-size: 18px; opacity: .92; }
+.v-duvod  { margin: 12px 0 0; font-size: 18px; font-weight: 600; }
+.v-kod    { margin: 10px 0 0; font: 600 15px ui-monospace, Consolas, monospace; opacity: .85; }
+.v-poznamka { margin: 6px 0 0; font-size: 15px; opacity: .9; }
+.v-nadpis:empty, .v-jmeno:empty, .v-typ:empty, .v-duvod:empty, .v-poznamka:empty { display: none; }
+
+.verdikt-tlacitka {
+  display: flex;
+  gap: 10px;
+}
+
+.verdikt-tlacitka button { flex: 1; }
+
+.tl-hlavni, .tl-druhotne {
+  padding: 18px;
+  border: 0;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.tl-hlavni { background: #fff; color: #111; }
+.tl-hlavni:disabled { opacity: .45; }
+.tl-druhotne { background: rgba(0, 0, 0, .28); color: #fff; }
+.tl-druhotne[hidden] { display: none; }
+
+/* ---- nastavení ---------------------------------------------------------- */
+
+.panel {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  overflow-y: auto;
+  padding: 20px calc(18px + env(safe-area-inset-left))
+           calc(28px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-right));
+  background: var(--pozadi);
+}
+
+.panel[hidden] { display: none; }
+.panel h1 { margin: 0 0 18px; font-size: 22px; }
+
+.panel label {
+  display: block;
+  margin-bottom: 14px;
+  color: var(--text-jemny);
+  font-size: 14px;
+}
+
+.panel input {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 12px;
+  border: 1px solid var(--cara);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 16px;   /* menší písmo způsobí na iOS přiblížení stránky */
+}
+
+.tlacitka {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tlacitka button { flex: 1; }
+.panel .tl-hlavni { background: var(--modra); color: #fff; }
+.panel .tl-druhotne { background: #37414f; color: var(--text); }
+
+.n-hlaska { min-height: 22px; margin: 6px 0 16px; font-size: 15px; font-weight: 600; }
+.n-hlaska.ok { color: #6bd18a; }
+.n-hlaska.chyba { color: #ff8a80; }
+
+.napoveda {
+  margin: 0 0 12px;
+  color: var(--text-jemny);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ---- správa ------------------------------------------------------------- */
+
+.s-hlavicka {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.s-zalozky {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.s-zalozky::-webkit-scrollbar { display: none; }
+
+.s-zalozky button {
+  flex: 0 0 auto;
+  padding: 9px 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text-jemny);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.s-zalozky button.vybrana { background: var(--modra); color: #fff; }
+
+.s-obsah { padding-bottom: 20px; }
+
+.s-nadpis {
+  margin: 22px 0 10px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.s-obsah > div > .s-nadpis:first-child { margin-top: 0; }
+
+.s-zprava {
+  margin: 8px 0 14px;
+  color: var(--text-jemny);
+  font-size: 15px;
+}
+
+.panel select {
+  display: block;
+  width: 100%;
+  margin-top: 5px;
+  padding: 12px;
+  border: 1px solid var(--cara);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.panel input[readonly] { opacity: .6; }
+.panel input[type="color"] { height: 44px; padding: 4px; }
+
+/* položky seznamů (zápasy, typy, permanentky) */
+
+.polozka {
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--cara);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.polozka.vybrana-polozka { border-color: var(--ok); }
+
+.polozka-nazev {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.polozka-popis {
+  margin-top: 3px;
+  color: var(--text-jemny);
+  font-size: 13px;
+}
+
+.polozka-akce {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.puntik {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.znacka {
+  align-self: center;
+  color: #6bd18a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tl-hlavni.maly, .tl-druhotne.maly {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.panel button:disabled { opacity: .5; }
+
+.vypis {
+  max-height: 40vh;
+  overflow: auto;
+  margin: 12px 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text-jemny);
+  font: 12px/1.6 ui-monospace, Consolas, monospace;
+}
+
+/* tabulky statistik */
+
+.tabulka-obal {
+  overflow-x: auto;
+  margin-bottom: 14px;
+}
+
+.tabulka {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tabulka th, .tabulka td {
+  padding: 7px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--cara);
+}
+
+.tabulka th {
+  color: var(--text-jemny);
+  font-weight: 600;
+}
+
+.tabulka td:first-child { white-space: normal; }
+
+/* ---- tisk karet --------------------------------------------------------- */
+
+.tisk { display: none; }
+
+@media print {
+  /* při tisku je vidět jen kontejner s kartami */
+  body > *:not(#tisk) { display: none !important; }
+
+  body { background: #fff; }
+
+  .tisk {
+    display: block;
+    color: #000;
+    font: 10pt/1.3 system-ui, sans-serif;
+  }
+
+  @page { size: A4; margin: 8mm; }
+
+  .karta {
+    display: inline-block;
+    vertical-align: top;
+    box-sizing: border-box;
+    width: 85mm;
+    height: 54mm;
+    margin: 0 2mm 2mm 0;
+    border: 0.3mm solid #ccc;
+    overflow: hidden;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .karta-pruh {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 11mm;
+    padding: 0 4mm;
+    color: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .karta-typ { font-size: 12pt; font-weight: 700; }
+  .karta-sezona { font-size: 8pt; }
+
+  .karta-telo {
+    display: flex;
+    gap: 4mm;
+    padding: 4mm;
+  }
+
+  .karta-qr { width: 30mm; height: 30mm; flex: 0 0 30mm; }
+  .karta-qr svg { width: 100%; height: 100%; display: block; }
+
+  .karta-vpravo { flex: 1; min-width: 0; }
+  .karta-klub { font-size: 11pt; font-weight: 700; }
+  .karta-nadpis { font-size: 7pt; letter-spacing: .5pt; }
+  .karta-linka { margin-top: 8mm; border-bottom: 0.3mm solid #999; }
+  .karta-popisek { margin-top: 1mm; font-size: 6pt; color: #777; }
+  .karta-kod { margin-top: 3mm; font-size: 8.5pt; font-weight: 700; }
+  .karta-chyba { font-size: 8pt; color: #c00; }
+}
+
+/* Čísla v tabulkách statistik doprava — sloupce se pak dají porovnávat okem. */
+.tabulka td:not(:first-child), .tabulka th:not(:first-child) { text-align: right; }
+.tabulka td:first-child { width: 100%; }
