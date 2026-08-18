@@ -68,7 +68,18 @@ const VYCHOZI_NASTAVENI = {
   zapas_id: '',
   // Poslední aktivní zápas, jaký přišel ze serveru. Podle něj se pozná,
   // jestli ho správce mezitím přepnul — viz naplnZapasy() v app.js.
-  nasledovany_zapas: ''
+  nasledovany_zapas: '',
+
+  // Co se po skenu ukáže pod verdiktem. Vypnuté ve výchozím stavu — obrazovka
+  // u vstupu má být přehledná a kontakty se nemají zbytečně promítat na veřejnosti.
+  zobrazit_kontakt: false,
+  zobrazit_poznamku: false,
+  zobrazit_platnost: false,
+  zobrazit_kartu: false,
+
+  // Verze serveru z posledního staženého seznamu — ukazuje se v Nastavení,
+  // ať jde poznat, jestli je nasazená ta správná.
+  verze_serveru: ''
 };
 
 export async function nactiNastaveni() {

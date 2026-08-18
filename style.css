@@ -198,7 +198,10 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* `safe` = vystřeď, ale když se obsah nevejde, zarovnej k hornímu okraji.
+     Bez toho se při zapnutých detailech vysune nadpis verdiktu mimo obrazovku
+     a obsluha vidí jen údaje, ne to hlavní — jestli má pustit. */
+  justify-content: safe center;
   gap: 6px;
   min-height: 0;
   overflow-y: auto;
@@ -209,6 +212,20 @@ body {
 .v-typ    { margin: 0; font-size: 18px; opacity: .92; }
 .v-duvod  { margin: 12px 0 0; font-size: 18px; font-weight: 600; }
 .v-kod    { margin: 10px 0 0; font: 600 15px ui-monospace, Consolas, monospace; opacity: .85; }
+
+/* volitelné údaje z tabulky — zapínají se v Nastavení */
+.v-detaily {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 12px 0 0;
+  font-size: 15px;
+}
+
+.v-detaily:empty { display: none; }
+.v-detaily dt { opacity: .75; }
+.v-detaily dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.v-detaily a { color: inherit; }
 .v-poznamka { margin: 6px 0 0; font-size: 15px; opacity: .9; }
 .v-nadpis:empty, .v-jmeno:empty, .v-typ:empty, .v-duvod:empty, .v-poznamka:empty { display: none; }
 
@@ -509,3 +526,23 @@ body {
 /* Čísla v tabulkách statistik doprava — sloupce se pak dají porovnávat okem. */
 .tabulka td:not(:first-child), .tabulka th:not(:first-child) { text-align: right; }
 .tabulka td:first-child { width: 100%; }
+
+/* zaškrtávátka v Nastavení — jiné rozvržení než textová pole */
+.panel label.prepinac {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.panel label.prepinac input {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  accent-color: var(--modra);
+}

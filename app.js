@@ -19,6 +19,9 @@ import {Ctecka, odezva} from './scan.js';
 import {posudek, normalizujKod, VYSLEDEK, VZHLED} from './verdikt.js';
 import {pripravSpravu, otevriSpravu} from './sprava.js';
 
+/** Verze skeneru — zvyšuje ji tools/verze.py, needituj ručně. */
+const VERZE_SKENERU = 'v12';
+
 const $ = (id) => document.getElementById(id);
 
 const prvek = {
@@ -27,7 +30,7 @@ const prvek = {
   video: $('video'), hlaska: $('hlaska'), btnKamera: $('btn-kamera'),
   rucni: $('rucni'), rucniKod: $('rucni-kod'),
   verdikt: $('verdikt'), vNadpis: $('v-nadpis'), vJmeno: $('v-jmeno'), vTyp: $('v-typ'),
-  vDuvod: $('v-duvod'), vKod: $('v-kod'), vPoznamka: $('v-poznamka'),
+  vDuvod: $('v-duvod'), vKod: $('v-kod'), vPoznamka: $('v-poznamka'), vDetaily: $('v-detaily'),
   vPustit: $('v-pustit'), vDalsi: $('v-dalsi')
 };
 
@@ -57,11 +60,13 @@ async function start() {
   pripravSpravu({
     obnovSnapshot: stahniSeznam,
     odesliFrontu: () => odesliFrontu({tise: false}),
-    nastaveniZmenena: (n) => { nastaveni = n; prekresliStav(); }
+    nastaveniZmenena: (n) => { nastaveni = n; prekresliStav(); },
+    verzeSkeneru: VERZE_SKENERU,
+    stariSeznamu: stariSnapshotu
   });
 
   if (!nastaveni.api_url || !nastaveni.token) {
-    otevriSpravu('pripojeni', 'Nejdřív vyplň adresu aplikace a token.');
+    otevriSpravu('nastaveni', 'Nejdřív vyplň adresu aplikace a token.');
   }
 
   setInterval(prekresliStav, 30000);
@@ -236,9 +241,14 @@ function ukazVerdikt(v, permanentka, kod, poznamka, tise) {
   prvek.verdikt.className = 'verdikt ' + vzhled.barva;
   prvek.vNadpis.textContent = vzhled.nadpis;
   prvek.vJmeno.textContent = permanentka?.jmeno || '';
+  // Když se celá platnost ukazuje v detailech, nemá smysl ji psát dvakrát.
+  const platnostVDetailech = !!nastaveni?.zobrazit_platnost;
   prvek.vTyp.textContent = permanentka?.typ_nazev
-    ? permanentka.typ_nazev + (permanentka.platnost_do ? ` · platí do ${permanentka.platnost_do}` : '')
+    ? permanentka.typ_nazev
+      + (!platnostVDetailech && permanentka.platnost_do
+          ? ` · platí do ${permanentka.platnost_do}` : '')
     : '';
+  vykresliDetaily(permanentka);
   prvek.vDuvod.textContent = v.duvod || '';
   prvek.vKod.textContent = kod || '';
   prvek.vPoznamka.textContent = poznamka || '';
@@ -246,6 +256,51 @@ function ukazVerdikt(v, permanentka, kod, poznamka, tise) {
   prvek.vPustit.hidden = v.vysledek !== VYSLEDEK.DUPLICITA;
   prvek.verdikt.hidden = false;
   if (!tise) odezva(vzhled.zvuk);
+}
+
+/**
+ * Volitelné údaje z tabulky pod verdiktem. Co se ukáže, si obsluha zapíná
+ * v Nastavení — u vstupu se hodí něco jiného než u pokladny.
+ */
+function vykresliDetaily(permanentka) {
+  prvek.vDetaily.innerHTML = '';
+  if (!permanentka) return;
+
+  const radky = [];
+  if (nastaveni?.zobrazit_kontakt) {
+    radky.push(['Telefon', permanentka.telefon, 'tel:']);
+    radky.push(['E-mail', permanentka.email, 'mailto:']);
+  }
+  if (nastaveni?.zobrazit_poznamku) {
+    radky.push(['Poznámka', permanentka.poznamka]);
+  }
+  if (nastaveni?.zobrazit_platnost) {
+    const od = permanentka.platnost_od;
+    const doo = permanentka.platnost_do;
+    radky.push(['Platnost', od && doo ? `${od} – ${doo}` : (od || doo)]);
+    radky.push(['Vydáno', permanentka.vydano_dne]);
+  }
+  if (nastaveni?.zobrazit_kartu) {
+    radky.push(['Číslo karty', permanentka.poradi]);
+    radky.push(['Stav', permanentka.stav]);
+  }
+
+  for (const [popisek, hodnota, protokol] of radky) {
+    if (hodnota === '' || hodnota === undefined || hodnota === null) continue;
+    const dt = document.createElement('dt');
+    dt.textContent = popisek;
+    const dd = document.createElement('dd');
+    if (protokol) {
+      // ať jde z verdiktu rovnou zavolat nebo napsat, když je potřeba něco řešit
+      const a = document.createElement('a');
+      a.href = protokol + String(hodnota).replace(/\s+/g, '');
+      a.textContent = String(hodnota);
+      dd.append(a);
+    } else {
+      dd.textContent = String(hodnota);
+    }
+    prvek.vDetaily.append(dt, dd);
+  }
 }
 
 function zavriVerdikt() {
@@ -356,6 +411,7 @@ async function stahniSeznam() {
   const data = await api.stahniSnapshot();
   await store.ulozSnapshot(data);
   snapshot = await store.nactiSnapshot();
+  if (data.verze) nastaveni = await store.ulozNastaveni({verze_serveru: data.verze});
   await naplnZapasy();
   prekresliStav();
   return {permanentky: data.permanentky.length, zapasy: data.zapasy.length};

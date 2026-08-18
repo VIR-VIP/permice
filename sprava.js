@@ -15,7 +15,7 @@ import {pripravKarty, vytiskni} from './tisk.js';
 const $ = (id) => document.getElementById(id);
 
 const ZALOZKY = [
-  {id: 'pripojeni', nazev: 'Připojení'},
+  {id: 'nastaveni', nazev: 'Nastavení'},
   {id: 'zapasy', nazev: 'Zápasy'},
   {id: 'permanentky', nazev: 'Permanentky'},
   {id: 'typy', nazev: 'Typy'},
@@ -32,7 +32,7 @@ const STAVY = [
 let zavislosti = null;   // {obnovSnapshot, odesliFrontu, nastaveniZmenena}
 let prehled = null;      // poslední data ze serveru
 let statistiky = null;
-let aktivni = 'pripojeni';
+let aktivni = 'nastaveni';
 let nastaveni = null;
 
 // ---- veřejné rozhraní ------------------------------------------------------
@@ -54,7 +54,7 @@ export function pripravSpravu(deps) {
 export async function otevriSpravu(zalozka, zprava) {
   nastaveni = await store.nactiNastaveni();
   $('sprava').hidden = false;
-  await prepni(zalozka || (nastaveni.api_url && nastaveni.token ? 'zapasy' : 'pripojeni'));
+  await prepni(zalozka || (nastaveni.api_url && nastaveni.token ? 'zapasy' : 'nastaveni'));
   if (zprava) hlaska(zprava, 'chyba');
 }
 
@@ -73,10 +73,10 @@ async function prepni(id, zachovejHlasku) {
   if (!zachovejHlasku) hlaska('');
   nastaveni = await store.nactiNastaveni();
 
-  if (id === 'pripojeni') return vykresliPripojeni();
+  if (id === 'nastaveni') return vykresliNastaveni();
 
   if (!nastaveni.api_url || !nastaveni.token) {
-    return obsah(zprava('Nejdřív vyplň adresu aplikace a token v záložce Připojení.'));
+    return obsah(zprava('Nejdřív vyplň adresu aplikace a token v záložce Nastavení.'));
   }
 
   obsah(zprava('Načítám…'));
@@ -99,9 +99,9 @@ async function znovu(zachovejHlasku) {
   await prepni(aktivni, zachovejHlasku);
 }
 
-// ---- Připojení -------------------------------------------------------------
+// ---- Nastavení -------------------------------------------------------------
 
-function vykresliPripojeni() {
+function vykresliNastaveni() {
   const k = document.createElement('div');
 
   k.append(nadpis('Tenhle telefon'),
@@ -116,8 +116,14 @@ function vykresliPripojeni() {
     tlacitko('Vyzkoušet spojení', 'druhotne', async () => {
       await ulozPripojeni();
       hlaska('Zkouším…', 'ok');
-      try { await api.ping(); hlaska('Spojení funguje.', 'ok'); }
-      catch (e) { hlaska(e.message, 'chyba'); }
+      try {
+        const odpoved = await api.ping();
+        if (odpoved?.verze) {
+          nastaveni = await store.ulozNastaveni({verze_serveru: odpoved.verze});
+        }
+        hlaska('Spojení funguje.', 'ok');
+        await znovu(true);
+      } catch (e) { hlaska(e.message, 'chyba'); }
     }),
     tlacitko('Stáhnout seznam', 'hlavni', async () => {
       await ulozPripojeni();
@@ -125,6 +131,7 @@ function vykresliPripojeni() {
       try {
         const info = await zavislosti.obnovSnapshot();
         hlaska(`Staženo ${info.permanentky} permanentek a ${info.zapasy} zápasů.`, 'ok');
+        await znovu(true);   // ať se obnoví i sekce Verze
       } catch (e) { hlaska(e.message, 'chyba'); }
     })
   ]));
@@ -139,6 +146,9 @@ function vykresliPripojeni() {
   k.append(napoveda('Údaje najdeš v tabulce v menu Permanentky → Zobrazit API údaje.'),
            napoveda('Seznam permanentek stáhni před každým zápasem — bez signálu '
                   + 'se kontroluje proti němu.'));
+
+  k.append(sekceZobrazeni());
+  k.append(sekceVerze());
 
   // klubová nastavení už žijí v tabulce
   if (prehled?.nastaveni) k.append(sekceKlub());
@@ -165,6 +175,53 @@ function sekceKlub() {
         prehled = await api.prehled();
       } catch (e) { hlaska(e.message, 'chyba'); }
     })]));
+  return k;
+}
+
+/** Co se ukáže pod verdiktem po naskenování. Volba platí jen pro tenhle telefon. */
+function sekceZobrazeni() {
+  const k = document.createElement('div');
+  k.append(nadpis('Co ukázat po skenu'),
+    napoveda('Kromě jména a typu jde zobrazit i další údaje z tabulky. '
+           + 'Vypnuté jsou proto, aby obrazovka u vstupu zůstala přehledná.'),
+    zaskrtavatko('z-kontakt', 'Telefon a e-mail', nastaveni.zobrazit_kontakt),
+    zaskrtavatko('z-poznamka', 'Poznámka', nastaveni.zobrazit_poznamku),
+    zaskrtavatko('z-platnost', 'Platnost od–do a datum vydání', nastaveni.zobrazit_platnost),
+    zaskrtavatko('z-karta', 'Číslo karty a stav', nastaveni.zobrazit_kartu),
+    napoveda('Telefon a e-mail se dají z verdiktu rovnou vyťukat. Počítej ale '
+           + 's tím, že se stahují do telefonu — kdo ho dostane odemčený, '
+           + 'má kontakty na všechny členy.'),
+    rada([tlacitko('Uložit zobrazení', 'hlavni', async () => {
+      nastaveni = await store.ulozNastaveni({
+        zobrazit_kontakt: $('z-kontakt').checked,
+        zobrazit_poznamku: $('z-poznamka').checked,
+        zobrazit_platnost: $('z-platnost').checked,
+        zobrazit_kartu: $('z-karta').checked
+      });
+      zavislosti.nastaveniZmenena(nastaveni);
+      hlaska('Uloženo.', 'ok');
+    })]));
+  return k;
+}
+
+/**
+ * Které verze právě běží. Skener a Apps Script se nasazují zvlášť, takže
+ * rozdílná čísla jsou normální — porovnávají se s verze.txt v projektu.
+ */
+function sekceVerze() {
+  const k = document.createElement('div');
+  k.append(nadpis('Verze'));
+  k.append(tabulka(['', ''], [
+    ['Skener', zavislosti.verzeSkeneru || '—'],
+    ['Server', nastaveni.verze_serveru || 'zatím nezjištěno'],
+    // stariSeznamu() vrací věty typu „seznam starý 5 min"; ve sloupci
+    // s popiskem „Seznam" by se to slovo opakovalo
+    ['Seznam', zavislosti.stariSeznamu
+      ? zavislosti.stariSeznamu().replace(/^seznam /, '') : '—']
+  ]));
+  k.append(napoveda('Verze serveru se doplní po Vyzkoušet spojení nebo Stáhnout '
+                  + 'seznam. Čísla jdou porovnat se souborem verze.txt v projektu — '
+                  + 'tak poznáš, jestli máš nasazené to nejnovější.'));
   return k;
 }
 
@@ -601,6 +658,17 @@ function pole(id, popisek, hodnota, volby = {}) {
   if (volby.readonly) i.readOnly = true;
   i.autocomplete = 'off';
   l.append(i);
+  return l;
+}
+
+function zaskrtavatko(id, popisek, zapnuto) {
+  const l = document.createElement('label');
+  l.className = 'prepinac';
+  const i = document.createElement('input');
+  i.type = 'checkbox';
+  i.id = id;
+  i.checked = !!zapnuto;
+  l.append(i, document.createTextNode(popisek));
   return l;
 }
 
