@@ -104,6 +104,10 @@ async function znovu(zachovejHlasku) {
 function vykresliNastaveni() {
   const k = document.createElement('div');
 
+  // Verze jde úplně nahoru — je to údaj, na který se člověk jen mrkne, a dřív
+  // byl schovaný pod všemi poli a zaškrtávátky, takže se k němu nedorolovalo.
+  k.append(sekceVerze());
+
   k.append(nadpis('Tenhle telefon'),
     napoveda('Uloží se jen v tomhle zařízení, do tabulky nic z toho nejde.'),
     pole('p-url', 'Adresa aplikace (Apps Script)', nastaveni.api_url,
@@ -140,7 +144,8 @@ function vykresliNastaveni() {
     tlacitko('Odeslat frontu', 'druhotne', async () => {
       try { hlaska(await zavislosti.odesliFrontu(), 'ok'); }
       catch (e) { hlaska(e.message, 'chyba'); }
-    })
+    }),
+    tlacitko('Vyměnit token', 'druhotne', vymenToken)
   ]));
 
   k.append(napoveda('Údaje najdeš v tabulce v menu Permanentky → Zobrazit API údaje.'),
@@ -148,7 +153,6 @@ function vykresliNastaveni() {
                   + 'se kontroluje proti němu.'));
 
   k.append(sekceZobrazeni());
-  k.append(sekceVerze());
 
   // klubová nastavení už žijí v tabulce
   if (prehled?.nastaveni) k.append(sekceKlub());
@@ -176,6 +180,30 @@ function sekceKlub() {
       } catch (e) { hlaska(e.message, 'chyba'); }
     })]));
   return k;
+}
+
+/**
+ * Vygeneruje nový API token. Hodí se při ztrátě telefonu — ten ztracený tím
+ * okamžitě přijde o přístup k seznamu členů i o právo zapisovat vstupy.
+ * Vytištěné permanentky to neovlivní, ty stojí na podpisovém klíči.
+ */
+async function vymenToken() {
+  const jistota = confirm('Vygenerovat nový API token?\n\n'
+    + 'Všechny ostatní telefony okamžitě přestanou fungovat a bude potřeba '
+    + 'do nich nový token zadat. Tenhle telefon se přenastaví sám.');
+  if (!jistota) return;
+
+  hlaska('Měním token…', 'ok');
+  try {
+    const odpoved = await api.novyToken();
+    nastaveni = await store.ulozNastaveni({token: odpoved.token});
+    zavislosti.nastaveniZmenena(nastaveni);
+    await znovu(true);
+    hlaska('Hotovo. Nový token je vyplněný v poli výš — přepiš ho do ostatních '
+         + 'telefonů.', 'ok');
+  } catch (e) {
+    hlaska('Nepovedlo se: ' + e.message, 'chyba');
+  }
 }
 
 /** Co se ukáže pod verdiktem po naskenování. Volba platí jen pro tenhle telefon. */

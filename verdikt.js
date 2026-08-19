@@ -11,6 +11,7 @@
 
 export const VYSLEDEK = {
   OK: 'OK',
+  BEZ_KARTY: 'BEZ_KARTY',
   DUPLICITA: 'DUPLICITA',
   DUPLICITA_POVOLENA: 'DUPLICITA_POVOLENA',
   NEPLATNA: 'NEPLATNA',
@@ -22,6 +23,7 @@ export const VYSLEDEK = {
 /** Jak se verdikt tváří — barva panelu a co má obsluha udělat. */
 export const VZHLED = {
   OK:                 {barva: 'ok',    nadpis: 'PUSTIT',      zvuk: 'ok'},
+  BEZ_KARTY:          {barva: 'ok',    nadpis: 'PUSTIT',      zvuk: 'ok'},
   DUPLICITA_POVOLENA: {barva: 'ok',    nadpis: 'PUSTIT',      zvuk: 'ok'},
   DUPLICITA:          {barva: 'pozor', nadpis: 'UŽ VSTOUPIL', zvuk: 'pozor'},
   NEPLATNA:           {barva: 'chyba', nadpis: 'NEPLATNÁ',    zvuk: 'chyba'},

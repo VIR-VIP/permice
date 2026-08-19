@@ -75,6 +75,10 @@ export const checkin = (vstup) => poslat('checkin', vstup);
 
 export const sync = (vstupy) => poslat('sync', {vstupy}, {timeout: 30000});
 
+/** Kolik lidí už na zápas přišlo — přes všechny telefony dohromady. */
+export const navstevnost = (zapas_id) =>
+  poslat('navstevnost', {zapas_id}, {method: 'GET', timeout: 20000});
+
 // ---- správa ----------------------------------------------------------------
 //
 // Všechny tyhle akce zapisují do stejných listů tabulky, které jde editovat ručně.
@@ -89,3 +93,4 @@ export const smazTyp = (kod) => poslat('admin.smazTyp', {kod});
 export const ulozPermanentku = (p) => poslat('admin.ulozPermanentku', p);
 export const vydej = (v) => poslat('admin.vydej', v, {timeout: 60000});
 export const ulozNastaveni = (hodnoty) => poslat('admin.nastaveni', {hodnoty});
+export const novyToken = () => poslat('admin.novyToken', null, {timeout: 30000});

@@ -546,3 +546,55 @@ body {
   flex: 0 0 auto;
   accent-color: var(--modra);
 }
+
+/* ---- výstraha před zápasem ---------------------------------------------- */
+
+.vystraha {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  padding: 20px calc(20px + env(safe-area-inset-left))
+           calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-right));
+  background: var(--pozor);
+  color: #fff;
+}
+
+.vystraha[hidden] { display: none; }
+
+.vystraha-obsah {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.vystraha-nadpis { margin: 0 0 16px; font-size: clamp(26px, 8vw, 38px); font-weight: 800; }
+
+.vystraha-seznam {
+  margin: 0;
+  padding-left: 22px;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.vystraha-seznam li { margin-bottom: 10px; }
+
+/* ---- vstup bez karty ---------------------------------------------------- */
+
+.rucni .tl-vedlejsi {
+  flex: 0 0 auto;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: #263041;
+  color: var(--text-jemny);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#bez-karty .s-hlavicka h1 { flex: 1; margin: 0; font-size: 22px; }
+#bez-karty .ikona { margin-left: 0; }

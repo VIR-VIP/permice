@@ -20,7 +20,7 @@ import {posudek, normalizujKod, VYSLEDEK, VZHLED} from './verdikt.js';
 import {pripravSpravu, otevriSpravu} from './sprava.js';
 
 /** Verze skeneru — zvyšuje ji tools/verze.py, needituj ručně. */
-const VERZE_SKENERU = 'v12';
+const VERZE_SKENERU = 'v14';
 
 const $ = (id) => document.getElementById(id);
 
@@ -31,7 +31,12 @@ const prvek = {
   rucni: $('rucni'), rucniKod: $('rucni-kod'),
   verdikt: $('verdikt'), vNadpis: $('v-nadpis'), vJmeno: $('v-jmeno'), vTyp: $('v-typ'),
   vDuvod: $('v-duvod'), vKod: $('v-kod'), vPoznamka: $('v-poznamka'), vDetaily: $('v-detaily'),
-  vPustit: $('v-pustit'), vDalsi: $('v-dalsi')
+  vPustit: $('v-pustit'), vDalsi: $('v-dalsi'),
+  vystraha: $('vystraha'), vystrahaSeznam: $('vystraha-seznam'),
+  vystrahaOk: $('vystraha-ok'), vystrahaNastaveni: $('vystraha-nastaveni'),
+  btnBezKarty: $('btn-bez-karty'), bezKarty: $('bez-karty'),
+  bkHledat: $('bk-hledat'), bkVysledky: $('bk-vysledky'),
+  bkHlaska: $('bk-hlaska'), bkZavrit: $('bk-zavrit')
 };
 
 let nastaveni = null;
@@ -40,6 +45,8 @@ let ctecka = null;
 let posledniSken = null;   // kvůli tlačítku „Přesto pustit"
 let zpracovavam = false;
 let cisloSkenu = 0;      // odpověď serveru patří jen tomu skenu, který ji vyvolal
+let navstevnostCelkem = null;   // počet ze serveru, přes všechny telefony
+let vystrahaOdklikana = false;
 
 // ---- start -----------------------------------------------------------------
 
@@ -71,7 +78,10 @@ async function start() {
 
   setInterval(prekresliStav, 30000);
   setInterval(() => odesliFrontu({tise: true}), 60000);
+  setInterval(dotahniNavstevnost, 90000);
   odesliFrontu({tise: true});
+  dotahniNavstevnost();
+  zkontrolujPripravenost();
 }
 
 function navazUdalosti() {
@@ -80,7 +90,11 @@ function navazUdalosti() {
 
   prvek.zapas.addEventListener('change', async () => {
     nastaveni = await store.ulozNastaveni({zapas_id: prvek.zapas.value});
+    navstevnostCelkem = null;
     prekresliStav();
+    dotahniNavstevnost();
+    vystrahaOdklikana = false;      // jiný zápas = znovu prověřit přípravu
+    zkontrolujPripravenost();
   });
 
   prvek.rucni.addEventListener('submit', (e) => {
@@ -99,7 +113,23 @@ function navazUdalosti() {
     if (kod) zpracuj(kod, true);
   });
 
-  window.addEventListener('online', () => { prekresliStav(); odesliFrontu({tise: true}); });
+  prvek.vystrahaOk.addEventListener('click', () => {
+    vystrahaOdklikana = true;
+    prvek.vystraha.hidden = true;
+  });
+  prvek.vystrahaNastaveni.addEventListener('click', () => {
+    vystrahaOdklikana = true;
+    prvek.vystraha.hidden = true;
+    otevriSpravu('nastaveni');
+  });
+
+  prvek.btnBezKarty.addEventListener('click', otevriBezKarty);
+  prvek.bkZavrit.addEventListener('click', () => { prvek.bezKarty.hidden = true; });
+  prvek.bkHledat.addEventListener('input', vykresliBezKarty);
+
+  window.addEventListener('online', () => {
+    prekresliStav(); odesliFrontu({tise: true}); dotahniNavstevnost();
+  });
   window.addEventListener('offline', prekresliStav);
 
   // po návratu z pozadí (zhasnutý displej) kameru probudíme
@@ -124,13 +154,13 @@ async function spustKameru() {
 
 // ---- jádro: zpracování skenu ----------------------------------------------
 
-async function zpracuj(vstupniKod, force) {
+async function zpracuj(vstupniKod, force, bezKarty) {
   // Dva skeny naráz (kamera + ruční zadání) by se překryly a obsluha by
   // nepoznala, ke kterému kódu verdikt patří.
   if (zpracovavam) return;
   zpracovavam = true;
   try {
-    await zpracujJeden(vstupniKod, force);
+    await zpracujJeden(vstupniKod, force, bezKarty);
   } catch (e) {
     // Bez tohohle by na displeji zůstalo viset „OVĚŘUJI…" s nefunkčním tlačítkem
     // a obsluha by nemohla pokračovat.
@@ -141,7 +171,7 @@ async function zpracuj(vstupniKod, force) {
   }
 }
 
-async function zpracujJeden(vstupniKod, force) {
+async function zpracujJeden(vstupniKod, force, bezKarty) {
   const kod = normalizujKod(vstupniKod);
   posledniSken = kod;
   const mujSken = ++cisloSkenu;
@@ -163,6 +193,10 @@ async function zpracujJeden(vstupniKod, force) {
   if (force && v.vysledek === VYSLEDEK.OK && predchozi) {
     v = {vysledek: VYSLEDEK.DUPLICITA_POVOLENA, duvod: 'Obsluha pustila i přes duplicitu.'};
   }
+  // bez karty nahrazuje jen chybějící kartu, ne její platnost — stejně jako na serveru
+  if (bezKarty && v.vysledek === VYSLEDEK.OK) {
+    v = {vysledek: VYSLEDEK.BEZ_KARTY, duvod: 'Permanentku neměl u sebe.'};
+  }
 
   const vstup = {
     vstup_id: store.noveVstupId(),
@@ -171,11 +205,21 @@ async function zpracujJeden(vstupniKod, force) {
     cas_skenu: new Date().toISOString(),
     obsluha: nastaveni.obsluha || '',
     zarizeni: nastaveni.zarizeni || '',
-    force: !!force
+    force: !!force,
+    bez_karty: !!bezKarty
   };
 
-  if (v.vysledek === VYSLEDEK.OK || v.vysledek === VYSLEDEK.DUPLICITA_POVOLENA) {
+  if (v.vysledek === VYSLEDEK.OK || v.vysledek === VYSLEDEK.DUPLICITA_POVOLENA
+      || v.vysledek === VYSLEDEK.BEZ_KARTY) {
     await store.zapamatujVstup(zapasId, kod, vstup.cas_skenu);
+  }
+
+  // Součet ze serveru se obnovuje jednou za půldruhé minuty. Kdybychom na to
+  // čekali, ukazovalo by počítadlo nesmysl typu „1 · celkem 0" — proto si nově
+  // vpuštěného člověka připočteme rovnou a server to při dalším dotazu srovná.
+  if (navstevnostCelkem !== null && !predchozi
+      && (v.vysledek === VYSLEDEK.OK || v.vysledek === VYSLEDEK.BEZ_KARTY)) {
+    navstevnostCelkem++;
   }
 
   // Verdikt ukážeme HNED z místních dat. Apps Script odpovídá 3–6 vteřin a tolik
@@ -216,6 +260,134 @@ async function zpracujJeden(vstupniKod, force) {
     if (!jesteNaObrazovce()) return;
     ukazVerdikt(v, permanentka, kod, '⚠ Ověřeno offline — ' + stariSnapshotu(), true);
   }).finally(prekresliStav);
+}
+
+// ---- pojistky před zápasem -------------------------------------------------
+
+/**
+ * Dvě chyby, které se u vstupu dělají a člověk si jich všimne pozdě: zapomenutý
+ * seznam (bez signálu se pak kontroluje proti starým datům) a špatně vybraný
+ * zápas (vstupy padají celý večer jinam). Odznaky ve stavové liště na to sice
+ * upozorňují, ale při frontě lidí je nikdo nečte — tohle se musí odkliknout.
+ */
+function zkontrolujPripravenost() {
+  // Dokud není vyplněná adresa a token, není co kontrolovat — a panel Nastavení
+  // už uživateli říká, co má udělat.
+  if (!nastaveni?.api_url || !nastaveni?.token) return;
+
+  const potize = [];
+  const dnes = new Date().toLocaleDateString('sv-SE');   // sv-SE dává YYYY-MM-DD
+
+  if (!snapshot?.ulozeno) {
+    potize.push('Seznam permanentek není stažený. Bez signálu neprojde nikdo.');
+  } else if (snapshot.ulozeno.slice(0, 10) !== dnes) {
+    potize.push('Seznam permanentek není z dneška (' + stariSnapshotu() + '). '
+              + 'Permanentky prodané mezitím v něm chybí.');
+  }
+
+  const zapasId = nastaveni.zapas_id || '';
+  if (!zapasId) {
+    potize.push('Není vybraný zápas — vstupy se nezapíšou.');
+  } else {
+    const zapas = (snapshot?.zapasy || []).find((z) => z.id === zapasId);
+    if (zapas && zapas.datum && zapas.datum !== dnes) {
+      potize.push('Vybraný zápas je na ' + zapas.datum + ', ne na dnešek. '
+                + 'Zkontroluj, že skenuješ na správný zápas.');
+    }
+  }
+
+  // Když se závada mezitím spravila (třeba se stáhl seznam), výstraha zmizí.
+  if (!potize.length) {
+    prvek.vystraha.hidden = true;
+    return;
+  }
+  if (vystrahaOdklikana) return;
+
+  prvek.vystrahaSeznam.innerHTML = '';
+  for (const text of potize) {
+    const li = document.createElement('li');
+    li.textContent = text;
+    prvek.vystrahaSeznam.append(li);
+  }
+  prvek.vystraha.hidden = false;
+}
+
+// ---- vstup bez karty -------------------------------------------------------
+
+function otevriBezKarty() {
+  prvek.bkHledat.value = '';
+  prvek.bkVysledky.innerHTML = '';
+  bkHlaska('');
+  prvek.bezKarty.hidden = false;
+  prvek.bkHledat.focus();
+}
+
+function bkHlaska(text, druh) {
+  prvek.bkHlaska.textContent = text || '';
+  prvek.bkHlaska.className = 'n-hlaska ' + (druh || '');
+}
+
+function vykresliBezKarty() {
+  const dotaz = prvek.bkHledat.value.trim().toLowerCase();
+  prvek.bkVysledky.innerHTML = '';
+  if (dotaz.length < 2) {
+    bkHlaska(dotaz ? 'Napiš aspoň dvě písmena.' : '');
+    return;
+  }
+
+  const nalezeni = (snapshot?.permanentky || []).filter((p) =>
+    String(p.jmeno || '').toLowerCase().includes(dotaz));
+
+  if (!nalezeni.length) {
+    bkHlaska('Nikdo takový ve staženém seznamu není.', 'chyba');
+    return;
+  }
+  bkHlaska('');
+
+  for (const p of nalezeni.slice(0, 20)) {
+    const r = document.createElement('div');
+    r.className = 'polozka';
+    r.append(text('div', 'polozka-nazev', p.jmeno || '(bez jména)'),
+             text('div', 'polozka-popis',
+                  [p.typ_nazev, p.stav, p.kod].filter(Boolean).join(' · ')));
+
+    const akce = document.createElement('div');
+    akce.className = 'polozka-akce';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'tl-hlavni maly';
+    b.textContent = 'Pustit';
+    b.addEventListener('click', () => {
+      if (!confirm(`Pustit ${p.jmeno} bez karty?`)) return;
+      prvek.bezKarty.hidden = true;
+      zpracuj(p.kod, false, true);
+    });
+    akce.append(b);
+    r.append(akce);
+    prvek.bkVysledky.append(r);
+  }
+  if (nalezeni.length > 20) {
+    bkHlaska(`Nalezeno ${nalezeni.length}, ukazuju prvních 20 — zpřesni hledání.`);
+  }
+}
+
+function text(tag, trida, obsah) {
+  const el = document.createElement(tag);
+  el.className = trida;
+  el.textContent = obsah;
+  return el;
+}
+
+// ---- návštěvnost -----------------------------------------------------------
+
+/** Kolik lidí už na zápas přišlo celkem — ze všech telefonů, ne jen z tohohle. */
+async function dotahniNavstevnost() {
+  if (!navigator.onLine || !nastaveni?.api_url || !nastaveni?.zapas_id) return;
+  try {
+    const d = await api.navstevnost(nastaveni.zapas_id);
+    if (d && d.zapas_id === nastaveni.zapas_id) navstevnostCelkem = d.unikatnich;
+    prekresliStav();
+  } catch { /* nevadí, ukáže se jen počet z tohohle telefonu */ }
 }
 
 // ---- verdikt ---------------------------------------------------------------
@@ -324,7 +496,10 @@ async function prekresliStav() {
 
   if (nastaveni.zapas_id) {
     const n = await store.pocetVstupu(nastaveni.zapas_id);
-    prvek.pocitadlo.textContent = `${n} ${sklonuj(n, 'vstup', 'vstupy', 'vstupů')}`;
+    // vlevo skeny z tohohle telefonu, vpravo součet ze všech
+    prvek.pocitadlo.textContent = navstevnostCelkem === null
+      ? `${n} ${sklonuj(n, 'vstup', 'vstupy', 'vstupů')}`
+      : `${n} · celkem ${navstevnostCelkem}`;
   } else {
     prvek.pocitadlo.textContent = '';
   }
@@ -414,5 +589,7 @@ async function stahniSeznam() {
   if (data.verze) nastaveni = await store.ulozNastaveni({verze_serveru: data.verze});
   await naplnZapasy();
   prekresliStav();
+  dotahniNavstevnost();
+  zkontrolujPripravenost();   // stažením mohla závada zmizet, nebo se objevit jiná
   return {permanentky: data.permanentky.length, zapasy: data.zapasy.length};
 }

@@ -38,7 +38,36 @@
   <input id="rucni-kod" inputmode="text" autocapitalize="characters" autocomplete="off"
          spellcheck="false" placeholder="RCE-2026-0001-K7X4" aria-label="Kód permanentky">
   <button type="submit">Ověřit</button>
+  <button type="button" id="btn-bez-karty" class="tl-vedlejsi">Bez karty</button>
 </form>
+
+<!-- Výstraha před začátkem zápasu: starý seznam nebo zápas z jiného dne.
+     Musí se odklikat, aby ji nikdo nepřehlédl při frontě u vstupu. -->
+<section id="vystraha" class="vystraha" hidden>
+  <div class="vystraha-obsah">
+    <p class="vystraha-nadpis">⚠ Zkontroluj přípravu</p>
+    <ul id="vystraha-seznam" class="vystraha-seznam"></ul>
+  </div>
+  <div class="verdikt-tlacitka">
+    <button id="vystraha-nastaveni" class="tl-druhotne">Otevřít nastavení</button>
+    <button id="vystraha-ok" class="tl-hlavni">Rozumím</button>
+  </div>
+</section>
+
+<!-- Vstup bez karty: najít člověka podle jména a pustit ho. -->
+<section id="bez-karty" class="panel" hidden>
+  <div class="s-hlavicka">
+    <h1>Vstup bez karty</h1>
+    <button id="bk-zavrit" class="ikona" title="Zavřít" aria-label="Zavřít">✕</button>
+  </div>
+  <p class="napoveda">Pro toho, kdo permanentku zapomněl doma. Najdi ho podle jména;
+     zapíše se to do tabulky jako vstup bez karty.</p>
+  <label>Hledat
+    <input id="bk-hledat" type="text" autocomplete="off" placeholder="příjmení nebo jméno">
+  </label>
+  <p id="bk-hlaska" class="n-hlaska"></p>
+  <div id="bk-vysledky"></div>
+</section>
 
 <!-- Verdikt překryje celou obrazovku, ať je vidět i proti světlu. -->
 <section id="verdikt" class="verdikt" hidden aria-live="assertive">
