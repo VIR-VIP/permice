@@ -1,9 +1,10 @@
-SKENER — verze v16   (2026-08-19)
+SKENER — verze v17   (2026-08-20)
 
 Generuje tools/verze.py, needituj ručně.
 Přehled obou částí je ve verze.txt v kořeni projektu.
 
 Historie
+  v17   2026-08-20  aplikace se po nahrání nové verze přenačte sama
   v16   2026-08-19  delší limity na odpověď serveru, méně dotazů na pozadí při otevřené Správě
   v15   2026-08-19  srozumitelná hláška, když nasazení na dané adrese neexistuje
   v14   2026-08-19  pojistky před zápasem, vstup bez karty, živý počet, výměna tokenu

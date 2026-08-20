@@ -20,7 +20,7 @@ import {posudek, normalizujKod, VYSLEDEK, VZHLED} from './verdikt.js';
 import {pripravSpravu, otevriSpravu} from './sprava.js';
 
 /** Verze skeneru — zvyšuje ji tools/verze.py, needituj ručně. */
-const VERZE_SKENERU = 'v16';
+const VERZE_SKENERU = 'v17';
 
 const $ = (id) => document.getElementById(id);
 
@@ -61,6 +61,7 @@ async function start() {
   navazUdalosti();
 
   if ('serviceWorker' in navigator) {
+    hlidejNovouVerzi();
     navigator.serviceWorker.register('sw.js').catch(() => { /* jen offline navíc */ });
   }
 
@@ -82,6 +83,26 @@ async function start() {
   odesliFrontu({tise: true});
   dotahniNavstevnost();
   zkontrolujPripravenost();
+}
+
+/**
+ * Po nahrání nové verze na hosting drží stránka pořád staré soubory z cache:
+ * nový service worker se sice na pozadí nainstaluje a převezme řízení, ale
+ * moduly už jsou načtené ty staré. Bez tohohle se nová verze projeví až při
+ * DRUHÉM otevření aplikace — a člověk mezitím marně hledá, proč se nic nezměnilo.
+ */
+function hlidejNovouVerzi() {
+  // Při úplně první instalaci není co přebírat, tam se přenačítat nemá.
+  const bylRizen = !!navigator.serviceWorker.controller;
+  let uzPrenacteno = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!bylRizen || uzPrenacteno) return;
+    // Nikdy neuhýbat obsluze pod rukama, když se právě rozhoduje o vstupu.
+    if (!prvek.verdikt.hidden) return;
+    uzPrenacteno = true;
+    location.reload();
+  });
 }
 
 function navazUdalosti() {
