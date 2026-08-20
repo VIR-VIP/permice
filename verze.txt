@@ -1,0 +1,13 @@
+SKENER — verze v16   (2026-08-19)
+
+Generuje tools/verze.py, needituj ručně.
+Přehled obou částí je ve verze.txt v kořeni projektu.
+
+Historie
+  v16   2026-08-19  delší limity na odpověď serveru, méně dotazů na pozadí při otevřené Správě
+  v15   2026-08-19  srozumitelná hláška, když nasazení na dané adrese neexistuje
+  v14   2026-08-19  pojistky před zápasem, vstup bez karty, živý počet, výměna tokenu
+  v13   2026-08-18  sekce Verze nahoru v Nastavení
+  v12   2026-08-18  obnova sekce Verze po stažení seznamu
+  v11   2026-08-18  zobrazení verzí v Nastavení
+  v10   2026-08-18  volitelné údaje po skenu, záložka Nastavení, oprava cache v service workeru
