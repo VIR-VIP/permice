@@ -20,10 +20,24 @@ export class Ctecka {
     this.ctx = null;
     this.posledni = {kod: '', cas: 0};
     this.bezi = false;
+    this.pozastaveno = false;
   }
 
   get jeAktivni() {
     return this.bezi;
+  }
+
+  /**
+   * Pozastaví hledání kódů, ale nechá běžet kameru. Vypnout a znovu zapnout
+   * proud by trvalo skoro vteřinu a obraz by problikl — takhle je návrat okamžitý.
+   */
+  pozastav() {
+    this.pozastaveno = true;
+  }
+
+  pokracuj() {
+    this.pozastaveno = false;
+    this.zapomenPosledni();   // po návratu smí projít i tatáž karta
   }
 
   async start() {
@@ -76,7 +90,7 @@ export class Ctecka {
   }
 
   async tik() {
-    if (!this.bezi || this.video.readyState < 2) return;
+    if (!this.bezi || this.pozastaveno || this.video.readyState < 2) return;
 
     let kod = null;
     try {

@@ -20,7 +20,7 @@ import {posudek, normalizujKod, VYSLEDEK, VZHLED} from './verdikt.js';
 import {pripravSpravu, otevriSpravu} from './sprava.js';
 
 /** Verze skeneru — zvyšuje ji tools/verze.py, needituj ručně. */
-const VERZE_SKENERU = 'v18';
+const VERZE_SKENERU = 'v19';
 
 const $ = (id) => document.getElementById(id);
 
@@ -68,7 +68,8 @@ async function start() {
   pripravSpravu({
     obnovSnapshot: stahniSeznam,
     odesliFrontu: () => odesliFrontu({tise: false}),
-    nastaveniZmenena: (n) => { nastaveni = n; prekresliStav(); },
+    nastaveniZmenena: (n) => { nastaveni = n; prekresliStav(); srovnejKameru(); },
+    prekresliKameru: srovnejKameru,
     verzeSkeneru: VERZE_SKENERU,
     stariSeznamu: stariSnapshotu
   });
@@ -137,6 +138,7 @@ function navazUdalosti() {
   prvek.vystrahaOk.addEventListener('click', () => {
     vystrahaOdklikana = true;
     prvek.vystraha.hidden = true;
+    srovnejKameru();
   });
   prvek.vystrahaNastaveni.addEventListener('click', () => {
     vystrahaOdklikana = true;
@@ -145,7 +147,10 @@ function navazUdalosti() {
   });
 
   prvek.btnBezKarty.addEventListener('click', otevriBezKarty);
-  prvek.bkZavrit.addEventListener('click', () => { prvek.bezKarty.hidden = true; });
+  prvek.bkZavrit.addEventListener('click', () => {
+    prvek.bezKarty.hidden = true;
+    srovnejKameru();
+  });
   prvek.bkHledat.addEventListener('input', vykresliBezKarty);
 
   window.addEventListener('online', () => {
@@ -167,6 +172,7 @@ async function spustKameru() {
     await ctecka.start();
     prvek.btnKamera.hidden = true;
     prvek.hlaska.textContent = 'Namiř kameru na QR kód permanentky.';
+    srovnejKameru();
   } catch (e) {
     prvek.hlaska.textContent = 'Kamera se nespustila: ' + e.message
       + ' Kód jde zadat ručně dole.';
@@ -283,6 +289,26 @@ async function zpracujJeden(vstupniKod, force, bezKarty) {
   }).finally(prekresliStav);
 }
 
+/**
+ * Jediné místo, které rozhoduje, jestli má kamera hledat kódy.
+ *
+ * Přes kameru leží panely (Správa, Vstup bez karty, výstraha) — kdyby se pod
+ * nimi dál skenovalo, zapsal by se vstup, který obsluha vůbec neuvidí: verdikt
+ * je pod nimi schovaný. Při verdiktu záleží na nastavení: buď se skenuje dál
+ * (rychlejší odbavení fronty), nebo se čeká na „Další" (jistější).
+ */
+function srovnejKameru() {
+  if (!ctecka?.jeAktivni) return;
+
+  const prekryvaPanel = !$('sprava').hidden
+                     || !prvek.bezKarty.hidden
+                     || !prvek.vystraha.hidden;
+  const verdiktDrzi = !prvek.verdikt.hidden && !nastaveni?.kamera_pri_verdiktu;
+
+  if (prekryvaPanel || verdiktDrzi) ctecka.pozastav();
+  else ctecka.pokracuj();
+}
+
 // ---- pojistky před zápasem -------------------------------------------------
 
 /**
@@ -331,6 +357,7 @@ function zkontrolujPripravenost() {
     prvek.vystrahaSeznam.append(li);
   }
   prvek.vystraha.hidden = false;
+  srovnejKameru();
 }
 
 // ---- vstup bez karty -------------------------------------------------------
@@ -341,6 +368,7 @@ function otevriBezKarty() {
   bkHlaska('');
   prvek.bezKarty.hidden = false;
   prvek.bkHledat.focus();
+  srovnejKameru();
 }
 
 function bkHlaska(text, druh) {
@@ -451,6 +479,7 @@ function ukazVerdikt(v, permanentka, kod, poznamka, tise) {
 
   prvek.vPustit.hidden = v.vysledek !== VYSLEDEK.DUPLICITA;
   prvek.verdikt.hidden = false;
+  srovnejKameru();
   if (!tise) odezva(vzhled.zvuk);
 }
 
@@ -502,6 +531,7 @@ function vykresliDetaily(permanentka) {
 function zavriVerdikt() {
   prvek.verdikt.hidden = true;
   ctecka?.zapomenPosledni();
+  srovnejKameru();
 }
 
 // ---- stavová lišta ---------------------------------------------------------

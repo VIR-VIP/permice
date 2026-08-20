@@ -54,12 +54,14 @@ export function pripravSpravu(deps) {
 export async function otevriSpravu(zalozka, zprava) {
   nastaveni = await store.nactiNastaveni();
   $('sprava').hidden = false;
+  zavislosti.prekresliKameru?.();
   await prepni(zalozka || (nastaveni.api_url && nastaveni.token ? 'zapasy' : 'nastaveni'));
   if (zprava) hlaska(zprava, 'chyba');
 }
 
 export function zavriSpravu() {
   $('sprava').hidden = true;
+  zavislosti.prekresliKameru?.();
 }
 
 // ---- přepínání záložek -----------------------------------------------------
@@ -153,6 +155,7 @@ function vykresliNastaveni() {
                   + 'se kontroluje proti němu.'));
 
   k.append(sekceZobrazeni());
+  k.append(sekceKamera());
 
   // klubová nastavení už žijí v tabulce
   if (prehled?.nastaveni) k.append(sekceKlub());
@@ -204,6 +207,27 @@ async function vymenToken() {
   } catch (e) {
     hlaska('Nepovedlo se: ' + e.message, 'chyba');
   }
+}
+
+/** Jak se má chovat kamera. Volba platí jen pro tenhle telefon. */
+function sekceKamera() {
+  const k = document.createElement('div');
+  k.append(nadpis('Kamera'),
+    zaskrtavatko('k-pri-verdiktu', 'Skenovat dál i při zobrazeném verdiktu',
+                 nastaveni.kamera_pri_verdiktu),
+    napoveda('Zapnuto: další permanentka verdikt rovnou nahradí, nemusí se klikat '
+           + 'na Další — rychlejší při frontě. Vypnuto: verdikt zůstane na obrazovce, '
+           + 'dokud ho neodklikneš — jistější, žádný se nedá přehlédnout.'),
+    napoveda('Když je otevřená Správa nebo Vstup bez karty, kamera nehledá nikdy — '
+           + 'verdikt by se schoval pod panelem a vstup by se zapsal nepozorovaně.'),
+    rada([tlacitko('Uložit', 'hlavni', async () => {
+      nastaveni = await store.ulozNastaveni({
+        kamera_pri_verdiktu: $('k-pri-verdiktu').checked
+      });
+      zavislosti.nastaveniZmenena(nastaveni);
+      hlaska('Uloženo.', 'ok');
+    })]));
+  return k;
 }
 
 /** Co se ukáže pod verdiktem po naskenování. Volba platí jen pro tenhle telefon. */

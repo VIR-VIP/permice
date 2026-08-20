@@ -77,6 +77,11 @@ const VYCHOZI_NASTAVENI = {
   zobrazit_platnost: false,
   zobrazit_kartu: false,
 
+  // Má kamera hledat další kód, i když je na obrazovce verdikt? Zapnuto je to
+  // rychlejší (další karta verdikt rovnou nahradí), vypnuto jistější
+  // (verdikt počká, dokud ho obsluha neodklikne).
+  kamera_pri_verdiktu: true,
+
   // Verze serveru z posledního staženého seznamu — ukazuje se v Nastavení,
   // ať jde poznat, jestli je nasazená ta správná.
   verze_serveru: ''
