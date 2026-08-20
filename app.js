@@ -20,7 +20,7 @@ import {posudek, normalizujKod, VYSLEDEK, VZHLED} from './verdikt.js';
 import {pripravSpravu, otevriSpravu} from './sprava.js';
 
 /** Verze skeneru — zvyšuje ji tools/verze.py, needituj ručně. */
-const VERZE_SKENERU = 'v17';
+const VERZE_SKENERU = 'v18';
 
 const $ = (id) => document.getElementById(id);
 

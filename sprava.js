@@ -595,6 +595,11 @@ function sklonuj(n, jeden, dva, pet) {
   return pet;
 }
 
+function popisZapasu(z) {
+  if (!z) return '—';
+  return `${z.souper || z.id} — ${z.unikatnich}`;
+}
+
 function nazevTypu(kod) {
   const t = prehled.typy.find((x) => x.kod === kod);
   return t ? (t.nazev || t.kod) : kod;
@@ -606,21 +611,43 @@ function vykresliStatistiky() {
   const s = statistiky;
   const k = document.createElement('div');
 
-  k.append(nadpis('Souhrn'));
+  const cislo = (n, des = 0) => Number(n || 0).toLocaleString('cs-CZ',
+    {minimumFractionDigits: des, maximumFractionDigits: des});
+
+  k.append(nadpis('Prodej'));
   k.append(tabulka(['', ''], [
-    ['Vydaných permanentek', s.souhrn.vydano],
-    ...s.typy.map((t) => ['  ' + t.nazev, t.vydano]),
-    ['Zápasů se vstupy', s.souhrn.zapasu],
-    ['Vstupů celkem', s.souhrn.vstupu]
+    ['Připravených karet', cislo(s.souhrn.karetCelkem)],
+    ['Zaplacených', cislo(s.souhrn.vydano)],
+    ['  z toho aktivních', cislo(s.souhrn.aktivnich)],
+    ['  blokovaných a ztracených', cislo(s.souhrn.blokovanych)],
+    ['Nevydaných (skladem)', cislo(s.souhrn.nevydanych)],
+    ['Tržby', cislo(s.souhrn.trzby) + ' Kč']
   ]));
 
-  k.append(nadpis('Návštěvnost po zápasech'));
+  k.append(nadpis('Podle typu'));
+  k.append(tabulka(['typ', 'zaplac.', 'tržby', 'vstupů', 'na kartu'],
+    s.typy.map((t) => [t.nazev, cislo(t.zaplacenych), cislo(t.trzby) + ' Kč',
+                       cislo(t.vstupu), cislo(t.prumerNaKartu, 1)])));
+
+  k.append(nadpis('Návštěvnost'));
+  k.append(tabulka(['', ''], [
+    ['Odehraných zápasů', cislo(s.souhrn.zapasu)],
+    ['Platných vstupů celkem', cislo(s.souhrn.vstupu)],
+    ['Průměr na zápas', cislo(s.souhrn.prumerNaZapas, 1)],
+    ['Průměr na zaplacenou kartu', cislo(s.souhrn.prumerNaKartu, 1)],
+    ['Karty, které nikdy nepřišly', cislo(s.souhrn.nevyuzitych)],
+    ['Nejnavštěvovanější zápas', popisZapasu(s.souhrn.nejlepsiZapas)],
+    ['Nejslabší zápas', popisZapasu(s.souhrn.nejslabsiZapas)]
+  ]));
+
+  k.append(nadpis('Po zápasech'));
   if (!s.zapasy.length) k.append(zprava('Zatím žádné vstupy.'));
   else k.append(tabulka(
-    ['zápas', 'vstupů', 'unikát.', 'odmít.', ...s.typy.map((t) => t.nazev)],
+    ['zápas', 'vstupů', 'z prodaných', 'bez karty', 'odmít.'],
     s.zapasy.map((z) => [
       [z.datum, z.souper].filter(Boolean).join(' ') || z.id,
-      z.vstupu, z.unikatnich, z.odmitnuto, ...z.podleTypu
+      z.unikatnich, Math.round(z.podilZAktivnich * 100) + ' %',
+      z.bezKarty, z.odmitnuto
     ])));
 
   if (s.odmitnuti.length) {
