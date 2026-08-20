@@ -9,7 +9,7 @@
  * starou verzi donekonečna.
  */
 
-const VERZE = 'permanentky-v14';
+const VERZE = 'permanentky-v16';
 
 const SOUBORY = [
   './',

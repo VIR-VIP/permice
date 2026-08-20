@@ -8,7 +8,10 @@
 
 import {nactiNastaveni} from './store.js';
 
-const TIMEOUT_MS = 12000;
+// Apps Script má sám o sobě ~2,5 s režie a požadavky od téhož uživatele řadí
+// za sebe. Když se sejde pravidelný dotaz na pozadí s akcí ve Správě, čeká se
+// snadno přes deset vteřin — dvanáctivteřinový limit na to byl krátký.
+const TIMEOUT_MS = 30000;
 
 export class ChybaApi extends Error {}
 
@@ -36,6 +39,12 @@ async function poslat(action, telo, {method = 'POST', timeout = TIMEOUT_MS} = {}
       });
     }
 
+    if (odpoved.status === 404) {
+      // Nejčastější omyl při nasazování: v aplikaci je adresa nasazení, které
+      // už neexistuje (typicky se vytvořilo nové místo úpravy stávajícího).
+      throw new ChybaApi('Na téhle adrese žádné nasazení není. Zkopíruj ji znovu '
+                       + 'z Apps Scriptu: Nasadit → Spravovat nasazení.');
+    }
     if (!odpoved.ok) throw new ChybaApi(`Server odpověděl ${odpoved.status}.`);
 
     const text = await odpoved.text();
@@ -51,7 +60,12 @@ async function poslat(action, telo, {method = 'POST', timeout = TIMEOUT_MS} = {}
     if (!data.ok) throw new ChybaApi(data.chyba || 'Neznámá chyba serveru.');
     return data.data;
   } catch (e) {
-    if (e.name === 'AbortError') throw new ChybaApi('Server neodpovídá.');
+    if (e.name === 'AbortError') {
+      // Vypršení limitu neznamená, že se nic nestalo — server mohl změnu zapsat
+      // a jen ji nestihl potvrdit. Proto neradíme „zkus to znovu", ale ověřit.
+      throw new ChybaApi('Server neodpověděl včas. Změna se možná uložila — '
+                       + 'přepni na jinou záložku a zpět a zkontroluj to.');
+    }
     if (e instanceof ChybaApi) throw e;
 
     // Sem spadne i nejčastější chyba při nasazování: když nasazení není
@@ -67,11 +81,13 @@ async function poslat(action, telo, {method = 'POST', timeout = TIMEOUT_MS} = {}
   }
 }
 
-export const ping = () => poslat('ping', null, {method: 'GET', timeout: 6000});
+export const ping = () => poslat('ping', null, {method: 'GET', timeout: 15000});
 
 export const stahniSnapshot = () => poslat('snapshot', null, {method: 'GET', timeout: 30000});
 
-export const checkin = (vstup) => poslat('checkin', vstup);
+// Sken na server nečeká — když se to nestihne, vstup jde do fronty a odešle se
+// později, takže tady krátký limit nevadí.
+export const checkin = (vstup) => poslat('checkin', vstup, {timeout: 12000});
 
 export const sync = (vstupy) => poslat('sync', {vstupy}, {timeout: 30000});
 

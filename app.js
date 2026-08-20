@@ -20,7 +20,7 @@ import {posudek, normalizujKod, VYSLEDEK, VZHLED} from './verdikt.js';
 import {pripravSpravu, otevriSpravu} from './sprava.js';
 
 /** Verze skeneru — zvyšuje ji tools/verze.py, needituj ručně. */
-const VERZE_SKENERU = 'v14';
+const VERZE_SKENERU = 'v16';
 
 const $ = (id) => document.getElementById(id);
 
@@ -383,6 +383,9 @@ function text(tag, trida, obsah) {
 /** Kolik lidí už na zápas přišlo celkem — ze všech telefonů, ne jen z tohohle. */
 async function dotahniNavstevnost() {
   if (!navigator.onLine || !nastaveni?.api_url || !nastaveni?.zapas_id) return;
+  // Když je otevřená Správa, obsluha neskenuje a počítadlo stejně nevidí —
+  // zbytečný dotaz by se řadil před její akci a zdržel ji.
+  if (!$('sprava').hidden) return;
   try {
     const d = await api.navstevnost(nastaveni.zapas_id);
     if (d && d.zapas_id === nastaveni.zapas_id) navstevnostCelkem = d.unikatnich;
